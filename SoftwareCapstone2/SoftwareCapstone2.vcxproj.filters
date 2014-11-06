@@ -32,5 +32,8 @@
     <Text Include="answer.txt">
       <Filter>Resource Files</Filter>
     </Text>
+    <Text Include="roc_curve.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
   </ItemGroup>
 </Project>
