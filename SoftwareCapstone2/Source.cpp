@@ -135,6 +135,7 @@ public:
 		int iter;
 		int i, j;
 		double neighbor_sum, f_sum;
+    unordered_map<Gene, double> F2;
 
 		F.clear();
 		
@@ -145,16 +146,16 @@ public:
 				//	printf("%s %s\n", graph[i].start.c_str(), graph[i].end.c_str());
 					neighbor_sum += (F[graph[i].end] * graph[i].w);
 				}
-				F[*gene_it] = ALPHA * neighbor_sum + (1 - ALPHA) * Y[*gene_it];
+				F2[*gene_it] = ALPHA * neighbor_sum + (1 - ALPHA) * Y[*gene_it];
 			}
 
 			f_sum = 0;
 			for (auto gene_it=genes.begin(); gene_it!=genes.end(); gene_it++) {
-				f_sum += F[*gene_it];
+				f_sum += F2[*gene_it];
 			}
 
 			for (auto gene_it=genes.begin(); gene_it!=genes.end(); gene_it++) {
-				F[*gene_it] = F[*gene_it] / f_sum;
+				F[*gene_it] = F2[*gene_it] / f_sum;
 			}
 		}
 	}
