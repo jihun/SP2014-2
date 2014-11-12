@@ -16,6 +16,7 @@ using namespace std;
 
 FILE *BIOGRID;
 FILE *prior;
+FILE *prior_miRNA;
 FILE *answer;
 FILE *roc_curve;
 FILE *fp;
@@ -95,7 +96,8 @@ public:
 			fgets(gene2, 1000, prior);
 			prior_count++;
 		}
-		//printf("%d\n",prior_count);
+
+    prior_miRNA = fopen("prior_knowledge_miRNA.txt", "rt");
 	}
 	
 	void init_answer()
@@ -106,29 +108,36 @@ public:
 		}
 	}
 
-	void init_prior_knowledge(bool cross_validation, double limit = 0.0)
-	{
-		int count = 0;
+  void init_prior_knowledge_from_answer_set() {
+    for (auto iter = training_ans.begin(); iter != training_ans.end(); iter++) {
+      Y[*iter] = 1;
+    }
+  }
 
-		if (cross_validation) {
-			for (auto iter=training_ans.begin(); iter!=training_ans.end(); iter++) {
-				Y[*iter] = 10;
-			}
-		}
-		else {
-			fseek(prior, 0L, SEEK_SET);
-			while (fscanf(prior, "%s\t", gene1) != EOF) {
-				fgets(gene2, 1000, prior);
-				double v = (double)(prior_count-count) / prior_count;
-				Y[gene1] = v;
-				count++;
+  void init_prior_knowledge_from_miRNA() {
+    fseek(prior, 0L, SEEK_SET);
+    while (fscanf(prior_miRNA, "%s\n", gene1) != EOF) {
+      Y[gene1] = 1;
+    }
+  }
 
-				if ((double)count/prior_count > limit) {
-					break;
-				}
-			}
-		}
-	}
+  void init_prior_knowledge_from_publication(double limit = 0.0) {
+    int count = 0;
+    fseek(prior, 0L, SEEK_SET);
+    while (fscanf(prior, "%s\t", gene1) != EOF) {
+      fgets(gene2, 1000, prior);
+      double v = (double) (prior_count - count) / prior_count;
+      for (int i = 0, len = strlen(gene1); i < len; ++i) {
+        gene1[i] = toupper(gene1[i]);
+      }
+      Y[gene1] = v;
+      count++;
+
+      if ((double) count / prior_count > limit) {
+        break;
+      }
+    }
+  }
 
 	void process()
 	{
@@ -209,7 +218,7 @@ public:
 		init_answer();
 
 		for (limit = 0; limit <= 1.0; limit += gap) {
-			init_prior_knowledge(false, limit);
+			init_prior_knowledge_from_publication(limit);
 			process();
 			out = output(false, 500);
 			fprintf(roc_curve, "%lf %d\n", limit, out);
@@ -235,7 +244,7 @@ public:
 			}
 		}
 		
-		init_prior_knowledge(true);
+		init_prior_knowledge_from_answer_set();
 		process();
 
 		out = output(true, 1000);
