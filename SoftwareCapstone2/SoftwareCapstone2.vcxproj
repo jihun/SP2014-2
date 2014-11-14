@@ -24,7 +24,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -66,10 +65,14 @@
     <ClCompile Include="Source.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="answer-Entrez.txt" />
     <Text Include="answer.txt" />
+    <Text Include="BIOGRID-Entrez.txt" />
     <Text Include="BIOGRID.txt" />
     <Text Include="output.txt" />
+    <Text Include="prior_knowledge-Entrez.txt" />
     <Text Include="prior_knowledge.txt" />
+    <Text Include="prior_knowledge_miRNA-Entrez.txt" />
     <Text Include="prior_knowledge_miRNA.txt" />
     <Text Include="roc_curve.txt" />
   </ItemGroup>
