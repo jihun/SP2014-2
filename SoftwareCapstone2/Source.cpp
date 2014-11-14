@@ -14,13 +14,6 @@
 
 using namespace std;
 
-FILE *BIOGRID;
-FILE *prior;
-FILE *prior_miRNA;
-FILE *answer;
-FILE *roc_curve;
-FILE *fp;
-
 typedef string Gene;
 
 typedef struct {
@@ -50,62 +43,62 @@ class GeneNetworkSimulator
 	unordered_map<Gene, double> F;
 
 	char gene1[1000], gene2[1000];
-	int prior_count;
 
 	set<Gene> ans, training_ans, validation_ans;
 	priority_queue<pair<Gene, double>, vector<pair<Gene,double>>, cmp_by_f> pq;
 public:
 
-	void init_graph() 
+  void init_graph(bool entrez) {
+    graph.clear();
+    genes.clear();
+    idx.clear();
+
+    double w;
+    FILE *fp;
+    
+    if (entrez) fp = fopen("BIOGRID-Entrez.txt", "rt");
+    else fp = fopen("BIOGRID.txt", "rt");
+
+    while (fscanf(fp, "%s\t%s\t%lf\n", gene1, gene2, &w) != EOF) {
+      Edge e1, e2;
+      e1.start = gene1; e1.end = gene2; e1.w = w;
+      e2.start = gene2; e2.end = gene1; e2.w = w;
+
+      graph.push_back(e1);
+      graph.push_back(e2);
+    }
+
+    fclose(fp);
+
+    sort(graph.begin(), graph.end(), cmp);
+    for (int i = 0; i<graph.size(); i++) {
+      if (idx.find(graph[i].start) == idx.end()) {
+        idx[graph[i].start] = i;
+        genes.insert(graph[i].start);
+      }
+    }
+  }
+	
+	void init_answer(bool entrez)
 	{
-		double w;
-		int count = 0;
+    FILE *fp;
 
-		graph.clear();
-		genes.clear();
-	
-		// input edges from BIOGRID
-		BIOGRID =  fopen("BIOGRID.txt", "rt");
-		while (fscanf(BIOGRID, "%s\t%s\t%lf\n", gene1, gene2, &w) != EOF) {
-			Edge e1, e2;
-			e1.start = gene1; e1.end = gene2; e1.w = w;
-			e2.start = gene2; e2.end = gene1; e2.w = w;
-			graph.push_back(e1);
-			graph.push_back(e2);
+    ans.clear();
 
-			/*
-			count++;
-			if (count > 1000)
-				break;
-			*/
-		}
-		// build the graph from BIOGRID
-		sort(graph.begin(), graph.end(), cmp);
-		for (int i=0; i<graph.size(); i++) {
-			if (idx.find(graph[i].start) == idx.end()) {
-				idx[graph[i].start] = i;
-				genes.insert(graph[i].start);
-			}
-		}
-		
-		prior = fopen("prior_knowledge.txt", "rt");
-	
-		// input prior knowledge
-		prior_count = 0;
-		while (fscanf(prior, "%s\t", gene1) != EOF) {
-			fgets(gene2, 1000, prior);
-			prior_count++;
-		}
+    if (entrez) {
+      fp = fopen("answer-Entrez.txt", "rt");
+      while (fscanf(fp, "%s", gene1) != EOF) {
+        ans.insert(gene1);
+      }
+    } else {
+      fp = fopen("answer.txt", "rt");
+      while (fscanf(fp, "%s", gene1) != EOF) {
+        ans.insert(gene1);
+        fgets(gene2, 1000, fp);
+      }
+    }
 
-    prior_miRNA = fopen("prior_knowledge_miRNA.txt", "rt");
-	}
-	
-	void init_answer()
-	{
-		answer = fopen("answer.txt", "rt");
-		while (fscanf(answer, "%s\t%s\n", gene1, gene2) != EOF) {
-			ans.insert(gene1);
-		}
+    fclose(fp);
 	}
 
   void init_prior_knowledge_from_answer_set() {
@@ -114,29 +107,54 @@ public:
     }
   }
 
-  void init_prior_knowledge_from_miRNA() {
-    fseek(prior, 0L, SEEK_SET);
-    while (fscanf(prior_miRNA, "%s\n", gene1) != EOF) {
+  void init_prior_knowledge_from_miRNA(bool entrez) {
+    FILE *fp;
+
+    if (entrez) fp = fopen("prior_knowledge_miRNA-Entrez.txt", "rt");
+    else fp = fopen("prior_knowledge_miRNA.txt", "rt");
+
+    while (fscanf(fp, "%s\n", gene1) != EOF) {
       Y[gene1] = 1;
     }
+
+    fclose(fp);
   }
 
-  void init_prior_knowledge_from_publication(double limit = 0.0) {
-    int count = 0;
-    fseek(prior, 0L, SEEK_SET);
-    while (fscanf(prior, "%s\t", gene1) != EOF) {
-      fgets(gene2, 1000, prior);
-      double v = (double) (prior_count - count) / prior_count;
+  void init_prior_knowledge_from_publication(bool entrez, double limit = 0.0) {
+    FILE *fp;
+    int prior_count = 0, rank = 0;
+
+    if (entrez) {
+      fp = fopen("prior_knowledge-Entrez.txt", "rt");
+      while (fscanf(fp, "%s\n", gene1) != EOF) {
+        ++prior_count;
+      }
+    } else {
+      fp = fopen("prior_knowledge.txt", "rt");
+      while (fscanf(fp, "%s", gene1) != EOF) {
+        fgets(gene2, 1000, fp);
+        ++prior_count;
+      }
+    }
+
+    fseek(fp, 0, SEEK_SET);
+    while (fscanf(fp, "%s", gene1) != EOF) {
+      if (!entrez) {
+        fgets(gene2, 1000, fp);
+      }
+      double v = (double) (prior_count - rank) / prior_count;
       for (int i = 0, len = strlen(gene1); i < len; ++i) {
         gene1[i] = toupper(gene1[i]);
       }
       Y[gene1] = v;
-      count++;
+      ++rank;
 
-      if ((double) count / prior_count > limit) {
+      if ((double) rank / prior_count > limit) {
         break;
       }
     }
+
+    fclose(fp);
   }
 
 	void process()
@@ -152,7 +170,6 @@ public:
 			for (auto gene_it=genes.begin(); gene_it!=genes.end(); gene_it++) {
 				neighbor_sum = 0;
 				for (i=idx[*gene_it]; i<graph.size() && graph[i].start==*gene_it; i++) {
-				//	printf("%s %s\n", graph[i].start.c_str(), graph[i].end.c_str());
 					neighbor_sum += (F[graph[i].end] * graph[i].w);
 				}
 				F2[*gene_it] = ALPHA * neighbor_sum + (1 - ALPHA) * Y[*gene_it];
@@ -167,75 +184,79 @@ public:
 				F[*gene_it] = F2[*gene_it] / f_sum;
 			}
 		}
+
+    pq = priority_queue<pair<Gene, double>, vector<pair<Gene, double>>, cmp_by_f>();
+    for (auto iter = F.begin(); iter != F.end(); iter++) {
+      pq.push(*iter);
+    }
 	}
 
-	int output(bool cross_validation, int limit)
+	void match_cross_validation(int limit)
 	{
-		int match = 0;
+    int matchValidation = 0, matchTraining = 0;
 
-		fp =  fopen("output.txt", "wt");
-		
-		pq = priority_queue<pair<Gene, double>, vector<pair<Gene,double>>, cmp_by_f>();
-		for (auto iter=F.begin(); iter!=F.end(); iter++) {
-			pq.push(*iter);
-		}
+		FILE *fp =  fopen("output.txt", "wt");
 
-		for (int i=0; i<limit; i++) {
-			if (pq.empty()) {
-				break;
-			}
-			string candidate = pq.top().first;
+    for (int i = 0; !pq.empty(); ++i) {
+      string candidate = pq.top().first;
+      double score = pq.top().second;
 
-			if (cross_validation) {
-				if (validation_ans.find(candidate) != validation_ans.end()) {
-					match++;
-				}
-			}
-			else {
-				if (ans.find(candidate) != ans.end()) {
-					//printf("%lf %s\n", pq.top().second, candidate.c_str());
-					match++;
-				}
-			}
+      bool inValidation = validation_ans.find(candidate) != validation_ans.end();
+      bool inTraining = training_ans.find(candidate) != training_ans.end();
+      bool inAnswer = inValidation || inTraining;
 
-			pq.pop();
-		}
-		/*
-		printf("%d\n", genes.size());
-		printf("%d\n", match);
-		*/
-		return match;
+      if (inValidation && i < limit) ++matchValidation;
+      if (inTraining && i < limit) ++matchTraining;
+
+      fprintf(fp, "%s\t%.9lf\t%d\n", candidate.c_str(), score, inValidation);
+
+      pq.pop();
+    }
+
+    fclose(fp);
+
+    printf("inTraining = %d\tinValidation = %d\n", matchTraining, matchValidation);
 	}
 
-	void ROC_curve_test(double gap) 
-	{
-		int i, out;
-		double limit;
+  int match_answer_set(int limit) {
+    int match = 0;
 
-		roc_curve = fopen("roc_curve.txt", "wt");
+    FILE *fp = fopen("output.txt", "wt");
 
-		init_graph();
-		init_answer();
+    for (int i = 0; !pq.empty(); ++i) {
+      string candidate = pq.top().first;
+      double score = pq.top().second;
 
-		for (limit = 0; limit <= 1.0; limit += gap) {
-			init_prior_knowledge_from_publication(limit);
-			process();
-			out = output(false, 500);
-			fprintf(roc_curve, "%lf %d\n", limit, out);
-		}
-	}
+      bool inAnswer = ans.find(candidate) != ans.end();
 
-	void cross_validation(double test_set_ratio)
+      if (inAnswer && i < limit) ++match;
+
+      fprintf(fp, "%s\t%.9lf\t%d\n", candidate.c_str(), score, inAnswer);
+
+      pq.pop();
+    }
+
+    fclose(fp);
+
+    printf("inAnswer = %d\n", match);
+
+    return match;
+  }
+
+	void cross_validation(bool entrez, double training_set_ratio)
 	{
 		int count;
 		int out;
 
-		init_graph();
-		init_answer();
+		init_graph(entrez);
+		init_answer(entrez);
+
+    training_ans.clear();
+    validation_ans.clear();
 
 		count = 0;
 		for (auto iter_ans=ans.begin(); iter_ans!=ans.end(); iter_ans++) {
-			if ((double)count / ans.size() > test_set_ratio) {
+			if ((double)count / ans.size() > training_set_ratio) {
 				validation_ans.insert(*iter_ans);
 			}
 			else {
@@ -244,13 +265,15 @@ public:
 			}
 		}
 		
+    //init_prior_knowledge_from_publication(true, 0.2); // if uncomment this line, prior knowledge function Y is initialized with data from publication
+    //init_prior_knowledge_from_miRNA(true); // if uncomment this line, prior knowledge function Y is initialized with data from miRNA-Disease-DNA link 
 		init_prior_knowledge_from_answer_set();
 		process();
 
-		out = output(true, 1000);
-		printf("%d\n", out);
-		printf("%d\n", validation_ans.size());
-		
+		match_cross_validation(200);
+		printf("validation set size = %d\n", validation_ans.size());
+
+    printf("\n");
 	}
 };
 
@@ -258,7 +281,15 @@ int main()
 {
 	GeneNetworkSimulator gns;
 	
-	//gns.ROC_curve_test(0.05);
-	gns.cross_validation(0.2);
+  //for (int i = 1; i <= 10; ++i) {
+	  gns.cross_validation(true, 0.2);
+  //}
+
+  /*gns.init_graph(true);
+  gns.init_answer(true);
+  //gns.init_prior_knowledge_from_miRNA(true);
+  gns.init_prior_knowledge_from_publication(true, 0.2);
+  gns.process();
+  gns.match_answer_set(100);*/
 	return 0;
 }
