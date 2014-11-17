@@ -35,5 +35,20 @@
     <Text Include="roc_curve.txt">
       <Filter>Resource Files</Filter>
     </Text>
+    <Text Include="prior_knowledge_miRNA.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="answer-Entrez.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="BIOGRID-Entrez.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="prior_knowledge_miRNA-Entrez.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="prior_knowledge-Entrez.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
   </ItemGroup>
 </Project>
